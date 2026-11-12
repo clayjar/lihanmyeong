@@ -5,7 +5,6 @@
 // @description  Replace Hangeul nouns with Hanja using Kiwi in the browser and a remote lexicon
 // @match        *://*/*
 // @run-at       document-idle
-// @inject-into  content
 // @grant        GM_xmlhttpRequest
 // @grant        GM_registerMenuCommand
 // @grant        GM_getValue
