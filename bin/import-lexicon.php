@@ -141,43 +141,63 @@ $collisions = 0;
 $already = 0;
 $cleaned = [];
 
-foreach ($pairs as [$key, $value]) {
-    $entry = hanja_normalize_entry($key, $value);
-    if ($entry === null) {
-        $skipped++;
-        continue;
-    }
-
-    [$hangeul, $hanja] = $entry;
-    if (isset($cleaned[$hangeul])) {
-        if ($cleaned[$hangeul] === $hanja) {
+$add = function (string $hangeul, string $hanja, string $pos) use (&$cleaned, &$already, &$collisions): void {
+    $id = $hangeul . "\0" . $pos;
+    if (isset($cleaned[$id])) {
+        if ($cleaned[$id][1] === $hanja) {
             $already++;
         } else {
             $collisions++;
         }
+        return;
+    }
+
+    $cleaned[$id] = [$hangeul, $hanja, $pos];
+};
+
+foreach ($pairs as [$key, $value]) {
+    $entry = hanja_normalize_entry($key, $value);
+    if ($entry !== null) {
+        $add($entry[0], $entry[1], 'NNG');
         continue;
     }
 
-    $cleaned[$hangeul] = $hanja;
+    $senses = hanja_verbal_senses($key, $value);
+    if ($senses === []) {
+        $skipped++;
+        continue;
+    }
+
+    foreach ($senses as [$hangeul, $hanja, $pos]) {
+        $add($hangeul, $hanja, $pos);
+    }
+}
+
+try {
+    hanja_migrate_lexicon($pdo);
+} catch (Throwable $e) {
+    fwrite(STDERR, $e->getMessage() . "\n");
+    exit(1);
 }
 
 $existing = [];
-$select = $pdo->query('SELECT hangeul, hanja FROM hanja_lexicon');
+$select = $pdo->query('SELECT hangeul, hanja, pos FROM hanja_lexicon');
 if ($select === false) {
     fwrite(STDERR, "Could not read hanja_lexicon\n");
     exit(1);
 }
 while ($row = $select->fetch()) {
-    $existing[$row['hangeul']] = $row['hanja'];
+    $pos = $row['pos'] === null || $row['pos'] === '' ? 'NNG' : $row['pos'];
+    $existing[$row['hangeul'] . "\0" . $pos] = $row['hanja'];
 }
 
 $insertRows = [];
-foreach ($cleaned as $hangeul => $hanja) {
-    if (!array_key_exists($hangeul, $existing)) {
-        $insertRows[] = [$hangeul, $hanja];
+foreach ($cleaned as $id => [$hangeul, $hanja, $pos]) {
+    if (!array_key_exists($id, $existing)) {
+        $insertRows[] = [$hangeul, $hanja, $pos];
         continue;
     }
-    if ($existing[$hangeul] === $hanja) {
+    if ($existing[$id] === $hanja) {
         $already++;
     } else {
         $collisions++;
@@ -189,12 +209,13 @@ try {
     foreach (array_chunk($insertRows, 500) as $chunk) {
         $placeholders = [];
         $params = [];
-        foreach ($chunk as [$hangeul, $hanja]) {
-            $placeholders[] = '(?, ?)';
+        foreach ($chunk as [$hangeul, $hanja, $pos]) {
+            $placeholders[] = '(?, ?, ?)';
             $params[] = $hangeul;
             $params[] = $hanja;
+            $params[] = $pos;
         }
-        $sql = 'INSERT INTO hanja_lexicon (hangeul, hanja) VALUES '
+        $sql = 'INSERT INTO hanja_lexicon (hangeul, hanja, pos) VALUES '
             . implode(', ', $placeholders)
             . ' ON DUPLICATE KEY UPDATE hanja = hanja';
         $insert = $pdo->prepare($sql);
