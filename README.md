@@ -4,6 +4,12 @@ Hangeul-to-Hanja conversion backed by MySQL. A Tampermonkey script runs [Kiwi](h
 
 MySQL 기반의 한글-한자 변환 시스템입니다. Tampermonkey 스크립트가 브라우저 내에서 [Kiwi](https://github.com/bab2min/Kiwi)를 실행하여 명사를 추출한 뒤, 해당 어간에 대해서만 서버에 변환을 요청합니다. 어휘 데이터가 서버에 저장되어 있으므로, 사전 내용을 수정하더라도 사용자 스크립트(userscript)를 새로 배포할 필요가 없습니다.
 
+![변형 전](https://files.mhan.dev/img/lihanmyeong-2.png "전")
+
+<div style="text-align:center;">↓</div>
+
+![변형 후](https://files.mhan.dev/img/lihanmyeong-1.png "후")
+
 ## Requirements
 
 - PHP 8.2 or newer, with `pdo_mysql` and `mbstring`
